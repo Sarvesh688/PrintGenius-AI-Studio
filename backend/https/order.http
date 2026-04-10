@@ -1,0 +1,21 @@
+POST http://localhost:8000/api/order/create
+Content-Type: application/json
+
+{
+    "listingId": "69c423bde5f397f95aae8a89",
+    "colorId": "69c2c685f7606018ac4d5617",
+    "size": "M",
+    "customerEmail": "john.doe@example.com",
+    "customerName": "John Doe",
+    "shippingAddress": {
+        "street": "123 Main St",
+        "city": "New York",
+        "state": "NY",
+        "postalCode": "10001",
+        "country": "USA",
+        "phoneNumber": "+1234567890"
+    }
+}
+
+// Get user orders api
+GET http://localhost:8000/api/order/user

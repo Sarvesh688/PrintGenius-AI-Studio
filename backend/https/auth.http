@@ -1,0 +1,27 @@
+POST http://localhost:8000/api/auth/sign-up/email
+Content-Type: application/json
+Origin: http://localhost:8000
+
+{
+  "name": "Bill",
+  "email": "bill@gmail.com",
+  "password": "123456",
+  "image": "",
+  "callbackURL": "",
+  "rememberMe": true
+}
+
+POST http://localhost:8000/api/auth/sign-in/email
+Content-Type: application/json
+
+{
+  "email": "kenddy@gmail.com",
+  "password": "123456",
+  "callbackURL": "",
+  "rememberMe": true
+}
+
+
+POST http://localhost:8000/api/auth/sign-out
+Content-Type: application/json
+Origin: http://localhost:8000

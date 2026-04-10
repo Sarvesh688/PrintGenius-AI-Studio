@@ -1,0 +1,8 @@
+"prompt": "vampire lips with fangs and bullets on tongue, heavy metal, silenced"
+    //"prompt":"red glossy sexy lady lips with silver star grillz, 3D silver bubble letter nameplate 'SEXY' above lips on chain, 3D silver bubble letter nameplate 'BABES' below lips on chain, soft ink wash background"
+    // "prompt": "grim reaper riding motorcycle at night, skull flames, 'LIVE FAST' bold text"
+    //"prompt": "90s vintage bootleg style: A gritty black panther mid-prowl. Massive 'URBAN JUNGLE' text in faded chrome 3D font. Heavy lightning strikes and halftone dot textures"
+    //"prompt": "Minimalist brutalist design: A single heavy industrial chain link. 'LOCKED IN' in giant blocky sans-serif font behind the subject. Off-white and obsidian palette, distressed concrete texture."
+    //"prompt": "Kawaii streetwear badge: A grumpy bulldog wearing a pink bow. 'PURE CHAOS' in bubble graffiti letters. Pastel purple and neon yellow, thick sticker-style white outline, starburst sparks",
+    //"prompt": "Streetwear Graphic: Realistic open mouth with vampire fangs and gold bullets on the tongue. Massive 'SILENCED' text in sharp, jagged blackletter above. Electric blue water splatters, high-contrast black and red palette, grit texture."
+    //"prompt":"Y2K Aesthetic: Realistic red lips with silver star grills on the teeth. A heavy silver chrome chain wraps around the lips with 3D metallic text 'SEXY' and 'BABES' hanging from the links. Soft pink watercolor smudge in the background, clean white base.""
