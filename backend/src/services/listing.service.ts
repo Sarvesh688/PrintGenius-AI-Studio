@@ -1,4 +1,4 @@
-import { generateText, generateImage } from "ai"
+import Groq from "groq-sdk";
 import cloudinary from "../config/cloudinary.config";
 import { Env } from "../config/env.config";
 import Listing from "../models/listing.model";
@@ -6,6 +6,9 @@ import Product from "../models/products.model";
 import { BadRequestException, InternalServerException, NotFoundException } from "../utils/app-error";
 import { CreateListingType } from "../validators/listing.validator";
 import { SYSTEM_PROMPT } from "../utils/prompt";
+
+//  Groq client — reads GROQ_API_KEY from your .env
+const groq = new Groq({ apiKey: Env.GROQ_API_KEY });
 
 const toSlug = (str: string) => str.toLowerCase().replace(/\s+/g, "-");
 
@@ -148,33 +151,46 @@ export const getMockupUrlService = async (slug: string, colorName: string) => {
   })
 
   return url
-
-
 }
+
 
 export const generateArtworkService = async (prompt: string) => {
   try {
-    const { text } = await generateText({
-      model: "anthropic/claude-opus-4.5",
-      system: SYSTEM_PROMPT,
-      prompt: prompt
-    })
 
-    const result = await generateImage({
-      model: "recraft/recraft-v4",
-      prompt: text.trim(),
-      size: "1024x1024",
-    })
+    // -------------------------------------------------------
+    // STEP 1: Groq (FREE) — Llama rewrites user prompt into
+    //         a detailed art prompt using your SYSTEM_PROMPT
+    // -------------------------------------------------------
+    const chat = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: prompt }
+      ],
+      max_tokens: 500,
+    });
 
-    const image = result.images[0];
-    if (!image) throw new NotFoundException("No image generated");
+    const engineeredPrompt = chat.choices[0]?.message?.content?.trim();
+    if (!engineeredPrompt) throw new InternalServerException("Prompt engineering failed");
 
-    const uploadImg = await cloudinary.uploader.upload(
-      `data:image/png;base64,${image.base64}`, {
+    // -------------------------------------------------------
+    // STEP 2: Pollinations.ai (FREE, NO API KEY NEEDED)
+    //         Generates a 1024x1024 image using FLUX model
+    // -------------------------------------------------------
+    const encodedPrompt = encodeURIComponent(engineeredPrompt);
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true&seed=${Date.now()}`;
+
+    // -------------------------------------------------------
+    // STEP 3: Upload the Pollinations image URL to Cloudinary
+    // -------------------------------------------------------
+    const uploadImg = await cloudinary.uploader.upload(imageUrl, {
       folder: "printify-ai/artworks",
-      resource_type: "image"
-    })
+      resource_type: "image",
+    });
 
+    // -------------------------------------------------------
+    // STEP 4: Remove background via Remove.bg (unchanged)
+    // -------------------------------------------------------
     const formData = new FormData();
     formData.append("image_url", uploadImg.secure_url);
     formData.append("size", "auto");
@@ -186,21 +202,20 @@ export const generateArtworkService = async (prompt: string) => {
     });
 
     if (!bgRes.ok) {
-      throw new InternalServerException("Background removal failed")
+      throw new InternalServerException("Background removal failed");
     }
 
-    const bgBuffer = Buffer.from(await bgRes.arrayBuffer())
+    const bgBuffer = Buffer.from(await bgRes.arrayBuffer());
 
     const finalUpload = await cloudinary.uploader.upload(
       `data:image/png;base64,${bgBuffer.toString("base64")}`, {
       folder: "printify-ai/artworks",
-      resource_type: "image"
-    }
-    )
+      resource_type: "image",
+    });
 
-    return { artworkUrl: finalUpload.secure_url }
+    return { artworkUrl: finalUpload.secure_url };
 
   } catch (error) {
-    throw new InternalServerException("Failed to generate artwork")
+    throw new InternalServerException("Failed to generate artwork");
   }
 }

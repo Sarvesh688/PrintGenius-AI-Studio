@@ -21,4 +21,5 @@ export const Env = {
   STRIPE_WEBHOOK_SECRET: getEnv("STRIPE_WEBHOOK_SECRET"),
 
   FRONTEND_ORIGIN: getEnv("FRONTEND_ORIGIN", "http://localhost:5173"),
+  GROQ_API_KEY: getEnv("GROQ_API_KEY"),
 }
