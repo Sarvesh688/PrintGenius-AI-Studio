@@ -1,5 +1,3 @@
-
-
 export type CreateListingType = {
     templateId: string;
     title: string;
@@ -12,6 +10,10 @@ export type CreateListingType = {
         left: number;
         width: number;
         height: number;
+        // FIX: was missing — backend's getMockupUrlService reads this to
+        // compute the scale factor. Without it the value was undefined,
+        // making scale = NaN and breaking all overlay coordinates.
+        refDisplayWidth: number;
     };
 }
 

@@ -16,7 +16,7 @@ interface ListingDataType {
     refDisplayWidth: number
   };
 }
-
+       
 export type ListingDataKey = keyof ListingDataType;
 
 interface CanvasContextType {

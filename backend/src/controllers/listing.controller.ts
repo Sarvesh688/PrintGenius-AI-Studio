@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { asyncHandler } from "../middlewares/asyncHandler.middleware";
 import { createListingSchema, generateArtworkSchema, GetMockupUrlSchema, slugSchema } from "../validators/listing.validator";
 import { HTTPSTATUS } from "../config/http.config";
-import { createListingService, generateArtworkService, getListingBySlugService, getMockupUrlService, getUserListingsService } from "../services/listing.service";
+import { createListingService, generateArtworkService, getListingBySlugService, getMockupImageService, getUserListingsService } from "../services/listing.service";
 
 
 export const createListingController = asyncHandler(
@@ -24,7 +24,7 @@ export const getUserListingsController = asyncHandler(
     const userId = req.user.id;
     const data = await getUserListingsService(userId);
 
-    return res.status(HTTPSTATUS.OK).json({
+    return res.status(HTTPSTATUS.CREATED).json({
       message: "Listing fetched successfully",
       ...data
     })
@@ -47,9 +47,18 @@ export const getListingBySlugController = asyncHandler(
 export const getMockupUrlController = asyncHandler(
   async (req: Request, res: Response) => {
     const { slug, colorName } = GetMockupUrlSchema.parse(req.params);
-    const url = await getMockupUrlService(slug, colorName);
+
+    // Composite the mockup server-side with sharp and stream the JPEG.
+    // Previously this redirected to a Cloudinary overlay URL, which always
+    // returned 404 because the mockup base images (dp9vvlndo account) and
+    // artwork uploads (digmeghzn account) live on different Cloudinary
+    // accounts — cross-account overlays are not supported by Cloudinary.
+    const imageBuffer = await getMockupImageService(slug, colorName);
+
+    res.setHeader("Content-Type", "image/jpeg");
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
-    return res.redirect(301, url)
+    res.setHeader("Content-Length", imageBuffer.length);
+    return res.status(200).send(imageBuffer);
   }
 )
 
@@ -63,5 +72,3 @@ export const generateArtworkController = asyncHandler(
     })
   }
 )
-
-

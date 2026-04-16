@@ -98,7 +98,6 @@ const CanvasEditor = ({
         setLoading(false)
       }
     })()
-
     return () => {
       // Dispose canvas and clear canvas editor
       canvas?.dispose();
@@ -118,20 +117,27 @@ const CanvasEditor = ({
       updatedListingState("artworkUrl", artworkDataUrl)
     }
 
-    const handleObjectModifed = (e: any) => {
-      const obj = e.target;
-      if (obj) updatedListingState("artworkPlacement", {
-        top: obj.top,
-        left: obj.left,
-        width: obj.getScaledWidth(),
-        height: obj.getScaledHeight(),
-        refDisplayWidth: DISPLAY_SIZE
-      })
+    // FIX: artworkPlacement was only saved on object:modified (drag/resize).
+    // If the user added an image/text and submitted without moving it,
+    // placement stayed at {top:0, left:0, width:0, height:0}, making the
+    // scale calculation in getMockupUrlService produce NaN/wrong coordinates.
+    // Now we capture placement on both object:added AND object:modified.
+    const captureArtworkWithPlacement = (e: any) => {
+      const obj = e.target ?? canvasEditor.getActiveObject() ?? canvasEditor.getObjects()[0];
+      if (obj) {
+        updatedListingState("artworkPlacement", {
+          top: obj.top,
+          left: obj.left,
+          width: obj.getScaledWidth(),
+          height: obj.getScaledHeight(),
+          refDisplayWidth: DISPLAY_SIZE
+        });
+      }
       captureArtwork();
-    }
+    };
 
-    canvasEditor.on("object:modified", handleObjectModifed);
-    canvasEditor.on("object:added", captureArtwork);
+    canvasEditor.on("object:modified", captureArtworkWithPlacement);
+    canvasEditor.on("object:added", captureArtworkWithPlacement);
     canvasEditor.on("object:removed", captureArtwork);
     canvasEditor.on("mouse:down", (e) => {
       if (!e.target) {
@@ -141,8 +147,8 @@ const CanvasEditor = ({
     });
 
     return () => {
-      canvasEditor.off("object:modified", handleObjectModifed);
-      canvasEditor.off("object:added", captureArtwork);
+      canvasEditor.off("object:modified", captureArtworkWithPlacement);
+      canvasEditor.off("object:added", captureArtworkWithPlacement);
       canvasEditor.off("object:removed", captureArtwork);
       canvasEditor.off("mouse:down", () => { });
     };
@@ -234,8 +240,6 @@ const CanvasEditor = ({
               <span className="text-base font-medium text-muted-foreground animate-pulse">Loading mask...</span>
             </div>
           )}
-          {/* <div className="relative flex items-center
-            justify-center"> */}
           <div
             ref={printableAreaRef}
             className="absolute z-20 "
@@ -254,7 +258,6 @@ const CanvasEditor = ({
               <div className="printable-area-info-icon" />
             </div>
           </div>
-          {/* </div> */}
 
           <img className="product-mask-image"
             src={`${ENV.BASE_API_URL}${template.baseUrl}`}

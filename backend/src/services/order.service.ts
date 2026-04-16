@@ -36,7 +36,7 @@ export const createOrderService = async (
       price_data: {
         currency: "usd",
         product_data: { name: listing.title },
-        unit_amount: Math.round(listing.sellingPrice * 100),
+        unit_amount: Math.round(listing.sellingPrice * 100),// Stripe uses cents
       },
       quantity: 1,
     }],

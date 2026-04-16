@@ -1,0 +1,56 @@
+# Render Blueprint for PrintGenius AI Backend
+# Deploy to Render with: https://dashboard.render.com/blueprints
+
+services:
+  - type: web
+    name: printgenius-ai-backend
+    env: node
+    region: oregon  # or choose your preferred region
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: MONGO_URI
+        sync: false  # Set this in Render dashboard
+      - key: BETTER_AUTH_SECRET
+        sync: false  # Set this in Render dashboard
+      - key: BETTER_AUTH_URL
+        sync: false  # Will be set to your Render URL
+      - key: GOOGLE_CLIENT_ID
+        sync: false  # Set this in Render dashboard
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false  # Set this in Render dashboard
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false  # Set this in Render dashboard
+      - key: CLOUDINARY_API_KEY
+        sync: false  # Set this in Render dashboard
+      - key: CLOUDINARY_API_SECRET
+        sync: false  # Set this in Render dashboard
+      - key: STRIPE_SECRET_KEY
+        sync: false  # Set this in Render dashboard
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false  # Set this in Render dashboard
+      - key: FRONTEND_ORIGIN
+        sync: false  # Set to your Vercel frontend URL
+      - key: AI_GATEWAY_API_KEY
+        sync: false  # Optional: Set if using AI Gateway
+      - key: OPENAI_API_KEY
+        sync: false  # Optional: Set if using OpenAI directly
+      - key: GROQ_API_KEY
+        sync: false  # Optional: Set if using Groq
+      - key: HUGGINGFACE_API_KEY
+        sync: false  # Optional: Set if using HuggingFace
+      - key: REMOVE_BG_API_KEY
+        sync: false  # Optional: Set if using Remove.bg
+
+    # Resource configuration
+    plan: free  # Start with free, upgrade as needed
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
