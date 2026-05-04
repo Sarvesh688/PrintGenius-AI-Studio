@@ -17,7 +17,10 @@ export const getAuth = () => {
   return betterAuth({
     baseURL: Env.BETTER_AUTH_URL,
     secret: Env.BETTER_AUTH_SECRET,
-    trustedOrigins: [Env.FRONTEND_ORIGIN],
+    trustedOrigins: [
+      Env.FRONTEND_ORIGIN,
+      "https://print-genius-ai-studio.vercel.app",
+    ],
     database: mongodbAdapter(mongoose.connection.db, {
       client: mongoose.connection.getClient()
     }),
@@ -43,8 +46,14 @@ export const getAuth = () => {
       cookies: {
         session_token: {
           name: "printgenius_session_token",
+          attributes: {
+            sameSite: "none" as const,
+            secure: true,
+            httpOnly: true,
+          }
         },
-      }
+      },
+      useSecureCookies: true,
     },
     plugins: [
       openAPI(),

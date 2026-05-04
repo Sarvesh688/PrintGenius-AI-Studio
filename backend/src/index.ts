@@ -18,10 +18,24 @@ import webhookRoutes from "./routes/webhook.route";
 
 const app = express();
 
+const allowedOrigins = [
+  Env.FRONTEND_ORIGIN,
+  "https://print-genius-ai-studio.vercel.app",
+  /https:\/\/print-genius-ai-studio.*\.vercel\.app$/,
+];
+
 app.use(
   cors({
-    origin: [Env.FRONTEND_ORIGIN],
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const allowed = allowedOrigins.some(o =>
+        typeof o === "string" ? o === origin : o.test(origin)
+      );
+      if (allowed) return callback(null, true);
+      callback(new Error(`CORS blocked: ${origin}`));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
     credentials: true,
   })
 )
