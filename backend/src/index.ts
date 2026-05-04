@@ -69,4 +69,16 @@ app.use(errorHandler)
 app.listen(Env.PORT, async () => {
   await connectDatabase()
   console.log(`Server running on port ${Env.PORT} in ${Env.NODE_ENV} mode`);
+
+  // Self-ping every 14 minutes to prevent Render free tier from spinning down
+  if (Env.NODE_ENV === "production") {
+    setInterval(async () => {
+      try {
+        await fetch(`${Env.BASE_URL}/health`);
+        console.log("Self-ping successful");
+      } catch (err) {
+        console.log("Self-ping failed:", err);
+      }
+    }, 14 * 60 * 1000); // 14 minutes
+  }
 })
