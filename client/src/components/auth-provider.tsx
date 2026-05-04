@@ -19,7 +19,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       social={{
         providers: ["google"]
       }}
-      redirectTo={ENV.FRONTEND_URL}
+      redirectTo="/"
       onSessionChange={() => {
         // Clear router cache (protected routes)
         navigate(0)
