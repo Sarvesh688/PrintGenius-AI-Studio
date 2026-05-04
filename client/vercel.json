@@ -5,6 +5,10 @@
       "destination": "https://printgenius-ai-studio.onrender.com/api/:path*"
     },
     {
+      "source": "/assets/:path*",
+      "destination": "https://printgenius-ai-studio.onrender.com/assets/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
