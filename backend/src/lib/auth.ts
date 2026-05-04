@@ -52,6 +52,22 @@ export const getAuth = () => {
             httpOnly: true,
           }
         },
+        state_cookie: {
+          name: "printgenius_state_cookie",
+          attributes: {
+            sameSite: "none" as const,
+            secure: true,
+            httpOnly: true,
+          }
+        },
+        pkce_code_verifier: {
+          name: "printgenius_pkce_code_verifier",
+          attributes: {
+            sameSite: "none" as const,
+            secure: true,
+            httpOnly: true,
+          }
+        },
       },
       useSecureCookies: true,
     },
