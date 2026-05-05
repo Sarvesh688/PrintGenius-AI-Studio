@@ -2,6 +2,10 @@
 
 A full-stack AI-powered print-on-demand platform built with MERN stack, featuring intelligent artwork generation, real-time design customization, and seamless e-commerce integration.
 
+## 🌐 Live Demo
+
+**[https://print-genius-ai-studio.vercel.app](https://print-genius-ai-studio.vercel.app)**
+
 ## ✨ Features
 
 ### 🤖 AI-Powered Artwork Generation
