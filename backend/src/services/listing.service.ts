@@ -210,13 +210,27 @@ export const generateArtworkService = async (prompt: string) => {
     const encodedPrompt = encodeURIComponent(engineeredPrompt);
     const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true&seed=${Date.now()}`;
 
+    // Fetch the image buffer first (with longer timeout)
+    console.log("Step 2: fetching image from Pollinations...");
+    const imageRes = await fetch(imageUrl, { signal: AbortSignal.timeout(120000) });
+    if (!imageRes.ok) throw new Error(`Pollinations fetch failed: ${imageRes.status}`);
+    const imageBuffer = Buffer.from(await imageRes.arrayBuffer());
+    console.log("Step 2 done: image fetched, size:", imageBuffer.length);
+
     // -------------------------------------------------------
-    // STEP 3: Upload the Pollinations image URL to Cloudinary
+    // STEP 3: Upload buffer to Cloudinary
     // -------------------------------------------------------
-    const uploadImg = await cloudinary.uploader.upload(imageUrl, {
-      folder: "printify-ai/artworks",
-      resource_type: "image",
+    console.log("Step 3: uploading to Cloudinary...");
+    const uploadImg = await new Promise<any>((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: "printify-ai/artworks", resource_type: "image" },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      ).end(imageBuffer);
     });
+    console.log("Step 3 done: uploaded to Cloudinary", uploadImg.secure_url);
 
     // -------------------------------------------------------
     // STEP 4: Remove background via Remove.bg (unchanged)
