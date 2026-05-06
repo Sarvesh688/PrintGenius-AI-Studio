@@ -246,6 +246,7 @@ export const generateArtworkService = async (prompt: string) => {
     return { artworkUrl: finalUpload.secure_url };
 
   } catch (error) {
+    console.error("generateArtworkService error:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
     throw new InternalServerException("Failed to generate artwork");
   }
 }
