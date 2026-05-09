@@ -31,13 +31,25 @@ export const createListingService = async (userId: string, data: CreateListingTy
       throw new BadRequestException(`Selling price must be at least ${template.basePrice}`);
     }
 
-    // Upload the artwork
-    const uploaded = await cloudinary.uploader.upload(
-      data.artworkUrl, {
+    // Upload the front artwork
+    const uploadedFront = await cloudinary.uploader.upload(
+      data.frontArtworkUrl, {
       folder: "printify-ai/artworks",
       resource_type: "image"
     }
-    )
+    );
+
+    // Conditionally upload the back artwork when present
+    let uploadedBackUrl: string | undefined;
+    if (data.backArtworkUrl) {
+      const uploadedBack = await cloudinary.uploader.upload(
+        data.backArtworkUrl, {
+        folder: "printify-ai/artworks",
+        resource_type: "image"
+      }
+      );
+      uploadedBackUrl = uploadedBack.secure_url;
+    }
 
     const listing = await Listing.create({
       userId,
@@ -46,9 +58,15 @@ export const createListingService = async (userId: string, data: CreateListingTy
       description: data.description,
       sellingPrice: data.sellingPrice,
       colorIds: data.colorIds,
-      artworkUrl: uploaded.secure_url,
-      artworkPlacement: data.artworkPlacement
-    })
+      // New dual-side fields
+      frontArtworkUrl: uploadedFront.secure_url,
+      frontArtworkPlacement: data.frontArtworkPlacement,
+      backArtworkUrl: uploadedBackUrl,
+      backArtworkPlacement: data.backArtworkPlacement,
+      // Legacy aliases (always equal to front fields)
+      artworkUrl: uploadedFront.secure_url,
+      artworkPlacement: data.frontArtworkPlacement,
+    });
 
     return { listing }
 
@@ -84,7 +102,10 @@ export const getListingBySlugService = async (slug: string) => {
       ...color,
       mockupImageUrl: color.name
         ? `${Env.BASE_URL}/api/listing/mockup/${slug}/${toSlug(color.name)}.jpg`
-        : null
+        : null,
+      ...(listing.backArtworkUrl && color.name
+        ? { backMockupImageUrl: `${Env.BASE_URL}/api/listing/mockup/${slug}/${toSlug(color.name)}/back.jpg` }
+        : {}),
     }));
     const template = listing.templateId as any;
 
@@ -98,6 +119,7 @@ export const getListingBySlugService = async (slug: string) => {
         sellingPrice: listing.sellingPrice,
         templateId: undefined,
         templateName: template?.name,
+        templateType: template?.type,
         templateBody: template?.body,
         sizes: template?.sizes,
         colorIds: colors
@@ -109,6 +131,25 @@ export const getListingBySlugService = async (slug: string) => {
   }
 }
 
+
+/**
+ * Pure function: computes the destination coordinates for compositing artwork
+ * onto a mockup image, given the printable area, the mockup's natural pixel
+ * width, and the reference display width used when the placement was recorded.
+ */
+export function computeMockupCoordinates(
+  printableArea: { top: number; left: number; width: number; height: number },
+  mockupWidth: number,
+  refDisplayWidth: number
+): { destX: number; destY: number; destW: number; destH: number } {
+  const scale = mockupWidth / refDisplayWidth;
+  return {
+    destX: Math.round(printableArea.left * scale),
+    destY: Math.round(printableArea.top * scale),
+    destW: Math.round(printableArea.width * scale),
+    destH: Math.round(printableArea.height * scale),
+  };
+}
 
 /**
  * Composites the listing artwork onto the colour mockup using sharp and
@@ -130,7 +171,11 @@ export const getListingBySlugService = async (slug: string) => {
  *   The controller sets immutable cache headers so it runs only once per
  *   colour per listing per client.
  */
-export const getMockupImageService = async (slug: string, colorName: string): Promise<Buffer> => {
+export const getMockupImageService = async (
+  slug: string,
+  colorName: string,
+  side: "front" | "back" = "front"
+): Promise<Buffer> => {
   const listing = await Listing.findOne({ slug })
     .populate("colorIds")
     .populate("templateId");
@@ -142,31 +187,45 @@ export const getMockupImageService = async (slug: string, colorName: string): Pr
   );
   if (!color) throw new NotFoundException("Color not found");
 
+  // Fetch the base mockup buffer
+  const mockupBuf = await fetchBuffer(color.mockupUrl);
+
+  // Determine which artwork URL and placement to use based on the requested side
+  let artworkUrl: string | undefined;
+  let artworkPlacement: { top: number; left: number; width: number; height: number; refDisplayWidth: number } | undefined;
+
+  if (side === "back") {
+    // If no back artwork, return the plain colour mockup with no compositing
+    if (!listing.backArtworkUrl) {
+      return await sharp(mockupBuf).jpeg({ quality: 90 }).toBuffer();
+    }
+    artworkUrl = listing.backArtworkUrl;
+    artworkPlacement = listing.backArtworkPlacement as typeof artworkPlacement;
+  } else {
+    artworkUrl = listing.artworkUrl;
+    artworkPlacement = listing.artworkPlacement as typeof artworkPlacement;
+  }
+
   const template = listing.templateId as any;
   const printableArea = template.printableArea as {
     top: number; left: number; width: number; height: number;
   };
 
-  const { refDisplayWidth } = listing.artworkPlacement;
+  const refDisplayWidth = artworkPlacement?.refDisplayWidth ?? 662;
 
-  // Fetch both images in parallel
-  const [mockupBuf, artworkBuf] = await Promise.all([
-    fetchBuffer(color.mockupUrl),
-    fetchBuffer(listing.artworkUrl),
-  ]);
+  // Fetch artwork buffer
+  const artworkBuf = await fetchBuffer(artworkUrl);
 
   // Get mockup natural dimensions
   const mockupMeta = await sharp(mockupBuf).metadata();
   const mockupW = mockupMeta.width!;
 
-  // Scale factor: map canvas DISPLAY_SIZE (662 px) → mockup natural width
-  const scale = mockupW / (refDisplayWidth ?? 662);
-
-  // Compute where the artwork lands on the mockup
-  const destX = Math.round(printableArea.left * scale);
-  const destY = Math.round(printableArea.top * scale);
-  const destW = Math.round(printableArea.width * scale);
-  const destH = Math.round(printableArea.height * scale);
+  // Compute where the artwork lands on the mockup using the extracted pure function
+  const { destX, destY, destW, destH } = computeMockupCoordinates(
+    printableArea,
+    mockupW,
+    refDisplayWidth
+  );
 
   // Resize artwork to fit the printable area, preserving aspect ratio
   const resizedArtwork = await sharp(artworkBuf)
@@ -205,38 +264,27 @@ export const generateArtworkService = async (prompt: string) => {
 
     // -------------------------------------------------------
     // STEP 2: Pollinations.ai (FREE, NO API KEY NEEDED)
-    //         Generates a 1024x1024 image using FLUX model
+    //         Generates a 1024x1024 image using the default fast model
     // -------------------------------------------------------
     const encodedPrompt = encodeURIComponent(engineeredPrompt);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true&seed=${Date.now()}`;
+    // Removed model=flux to significantly improve generation speed
+    const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&nologo=true&seed=${Date.now()}`;
 
-    // Fetch the image buffer first (with longer timeout)
+    // Fetch the image buffer first
     console.log("Step 2: fetching image from Pollinations...");
-    const imageRes = await fetch(imageUrl, { signal: AbortSignal.timeout(120000) });
-    if (!imageRes.ok) throw new Error(`Pollinations fetch failed: ${imageRes.status}`);
+    const imageRes = await fetch(imageUrl, { signal: AbortSignal.timeout(60000) });
+    if (!imageRes.ok) throw new Error(`Pollinations fetch failed: ${imageRes.status} ${imageRes.statusText}`);
     const imageBuffer = Buffer.from(await imageRes.arrayBuffer());
     console.log("Step 2 done: image fetched, size:", imageBuffer.length);
 
     // -------------------------------------------------------
-    // STEP 3: Upload buffer to Cloudinary
+    // STEP 3: Remove background via Remove.bg directly
+    //         (Skipping intermediate Cloudinary upload saves time)
     // -------------------------------------------------------
-    console.log("Step 3: uploading to Cloudinary...");
-    const uploadImg = await new Promise<any>((resolve, reject) => {
-      cloudinary.uploader.upload_stream(
-        { folder: "printify-ai/artworks", resource_type: "image" },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      ).end(imageBuffer);
-    });
-    console.log("Step 3 done: uploaded to Cloudinary", uploadImg.secure_url);
-
-    // -------------------------------------------------------
-    // STEP 4: Remove background via Remove.bg (unchanged)
-    // -------------------------------------------------------
+    console.log("Step 3: removing background...");
     const formData = new FormData();
-    formData.append("image_url", uploadImg.secure_url);
+    // Pass the raw buffer directly to Remove.bg
+    formData.append("image_file", new Blob([imageBuffer]), "image.jpg");
     formData.append("size", "auto");
 
     const bgRes = await fetch("https://api.remove.bg/v1.0/removebg", {
@@ -246,21 +294,33 @@ export const generateArtworkService = async (prompt: string) => {
     });
 
     if (!bgRes.ok) {
-      throw new InternalServerException("Background removal failed");
+      const errorText = await bgRes.text();
+      console.error("Remove.bg API Error:", errorText);
+      throw new Error(`Background removal failed: ${bgRes.status}`);
     }
 
     const bgBuffer = Buffer.from(await bgRes.arrayBuffer());
+    console.log("Step 3 done: background removed, size:", bgBuffer.length);
 
-    const finalUpload = await cloudinary.uploader.upload(
-      `data:image/png;base64,${bgBuffer.toString("base64")}`, {
-      folder: "printify-ai/artworks",
-      resource_type: "image",
+    // -------------------------------------------------------
+    // STEP 4: Upload final PNG to Cloudinary
+    // -------------------------------------------------------
+    console.log("Step 4: uploading final image to Cloudinary...");
+    const finalUpload = await new Promise<any>((resolve, reject) => {
+      cloudinary.uploader.upload_stream(
+        { folder: "printify-ai/artworks", resource_type: "image" },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      ).end(bgBuffer);
     });
+    console.log("Step 4 done: uploaded final image", finalUpload.secure_url);
 
     return { artworkUrl: finalUpload.secure_url };
 
-  } catch (error) {
-    console.error("generateArtworkService error:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+  } catch (error: any) {
+    console.error("generateArtworkService error:", error.message || error);
     throw new InternalServerException("Failed to generate artwork");
   }
 }

@@ -3,10 +3,11 @@ import { Canvas } from "fabric"
 import { useCanvas } from "@/context/canvas-context";
 import { ProductColorType, ProductType } from "@/types/product";
 import { Button } from "@/components/ui/button";
-import { Eye, Pencil } from "lucide-react";
+import { Eye, Pencil, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyCustomControls } from "@/lib/canvas-controls";
 import { ENV } from "@/lib/env";
+import ThreeDProductViewer from "./ThreeDProductViewer";
 
 function getScale(el: HTMLElement, width: number, height: number, pad = 40) {
   return Math.min((el.clientWidth - pad) / width, (el.clientHeight - pad) / height, 1);
@@ -19,17 +20,31 @@ const CanvasEditor = ({
   template: ProductType;
   defaultColor?: ProductColorType;
 }) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Front canvas refs
+  const frontCanvasRef = useRef<HTMLCanvasElement>(null);
+  // Back canvas refs
+  const backCanvasRef = useRef<HTMLCanvasElement>(null);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const printableAreaRef = useRef<HTMLDivElement>(null);
 
   const [selectedColor, setSelectedColor] = useState<ProductColorType | null>(null)
   const [viewMode, setViewMode] = useState<"design" | "preview">("design");
   const [loading, setLoading] = useState(true);
-  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+
   const [isMaskLoaded, setIsMaskLoaded] = useState(false);
 
-  const { canvasEditor, setCanvasEditor, listingData, updatedListingState } = useCanvas()
+  const {
+    canvasEditor,
+    setFrontCanvas,
+    setBackCanvas,
+    frontCanvas,
+    backCanvas,
+    activeSide,
+    setActiveSide,
+    listingData,
+    updatedListingState
+  } = useCanvas()
 
   const DISPLAY_SIZE = 662;
 
@@ -55,30 +70,28 @@ const CanvasEditor = ({
     setIsMaskLoaded(false);
   }, [template.baseUrl]);
 
+  // ── Front canvas initialisation ──────────────────────────────────────────
   useEffect(() => {
-    if (!canvasRef.current || !template) return;
-    let canvas: Canvas
+    if (!frontCanvasRef.current || !template) return;
+    let canvas: Canvas;
 
     (async () => {
       try {
-
         const scale = containerRef.current
           ? getScale(containerRef.current, printableArea.width, printableArea.height)
-          : 1
+          : 1;
 
-        canvas = new Canvas(canvasRef.current!, {
+        canvas = new Canvas(frontCanvasRef.current!, {
           width: printableArea.width,
           height: printableArea.height,
           backgroundColor: undefined,
           preserveObjectStacking: true,
           controlsAboveOverlay: true
-        })
-        canvas.setDimensions(
-          {
-            width: printableArea.width * scale,
-            height: printableArea.height * scale
-          }
-        )
+        });
+        canvas.setDimensions({
+          width: printableArea.width * scale,
+          height: printableArea.height * scale
+        });
         canvas.setZoom(scale);
 
         const dpr = window.devicePixelRatio || 1;
@@ -91,41 +104,83 @@ const CanvasEditor = ({
         canvas.calcOffset();
         canvas.requestRenderAll();
         applyCustomControls(canvas);
-        setCanvasEditor(canvas)
+        setFrontCanvas(canvas);
       } catch (e) {
-        console.log("Canvas failed to init")
+        console.log("Front canvas failed to init");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    })()
+    })();
+
     return () => {
-      // Dispose canvas and clear canvas editor
       canvas?.dispose();
-      setCanvasEditor(null);
+      setFrontCanvas(null);
     };
-  }, [template])
+  }, [template]);
 
+  // ── Back canvas initialisation ───────────────────────────────────────────
   useEffect(() => {
-    if (!canvasEditor) return;
+    if (!backCanvasRef.current || !template) return;
+    let canvas: Canvas;
 
-    const captureArtwork = () => {
+    (async () => {
+      try {
+        const scale = containerRef.current
+          ? getScale(containerRef.current, printableArea.width, printableArea.height)
+          : 1;
+
+        canvas = new Canvas(backCanvasRef.current!, {
+          width: printableArea.width,
+          height: printableArea.height,
+          backgroundColor: undefined,
+          preserveObjectStacking: true,
+          controlsAboveOverlay: true
+        });
+        canvas.setDimensions({
+          width: printableArea.width * scale,
+          height: printableArea.height * scale
+        });
+        canvas.setZoom(scale);
+
+        const dpr = window.devicePixelRatio || 1;
+        if (dpr > 1) {
+          canvas.getElement().width = printableArea.width * dpr;
+          canvas.getElement().height = printableArea.height * dpr;
+          canvas.getContext().scale(dpr, dpr);
+        }
+
+        canvas.calcOffset();
+        canvas.requestRenderAll();
+        applyCustomControls(canvas);
+        setBackCanvas(canvas);
+      } catch (e) {
+        console.log("Back canvas failed to init");
+      }
+    })();
+
+    return () => {
+      canvas?.dispose();
+      setBackCanvas(null);
+    };
+  }, [template]);
+
+  // ── Front canvas event handlers ──────────────────────────────────────────
+  useEffect(() => {
+    if (!canvasEditor || activeSide !== "front") return;
+
+    const captureFrontArtwork = () => {
       const artworkDataUrl = canvasEditor.toDataURL({
         format: "png",
         multiplier: 1,
         quality: 1.0
-      })
-      updatedListingState("artworkUrl", artworkDataUrl)
-    }
+      });
+      updatedListingState("frontArtworkUrl", artworkDataUrl);
+    };
 
-    // FIX: artworkPlacement was only saved on object:modified (drag/resize).
-    // If the user added an image/text and submitted without moving it,
-    // placement stayed at {top:0, left:0, width:0, height:0}, making the
-    // scale calculation in getMockupUrlService produce NaN/wrong coordinates.
-    // Now we capture placement on both object:added AND object:modified.
-    const captureArtworkWithPlacement = (e: any) => {
+    const captureFrontArtworkWithPlacement = (e: any) => {
       const obj = e.target ?? canvasEditor.getActiveObject() ?? canvasEditor.getObjects()[0];
       if (obj) {
-        updatedListingState("artworkPlacement", {
+        updatedListingState("frontArtworkPlacement", {
           top: obj.top,
           left: obj.left,
           width: obj.getScaledWidth(),
@@ -133,12 +188,12 @@ const CanvasEditor = ({
           refDisplayWidth: DISPLAY_SIZE
         });
       }
-      captureArtwork();
+      captureFrontArtwork();
     };
 
-    canvasEditor.on("object:modified", captureArtworkWithPlacement);
-    canvasEditor.on("object:added", captureArtworkWithPlacement);
-    canvasEditor.on("object:removed", captureArtwork);
+    canvasEditor.on("object:modified", captureFrontArtworkWithPlacement);
+    canvasEditor.on("object:added", captureFrontArtworkWithPlacement);
+    canvasEditor.on("object:removed", captureFrontArtwork);
     canvasEditor.on("mouse:down", (e) => {
       if (!e.target) {
         canvasEditor.discardActiveObject();
@@ -147,29 +202,72 @@ const CanvasEditor = ({
     });
 
     return () => {
-      canvasEditor.off("object:modified", captureArtworkWithPlacement);
-      canvasEditor.off("object:added", captureArtworkWithPlacement);
-      canvasEditor.off("object:removed", captureArtwork);
+      canvasEditor.off("object:modified", captureFrontArtworkWithPlacement);
+      canvasEditor.off("object:added", captureFrontArtworkWithPlacement);
+      canvasEditor.off("object:removed", captureFrontArtwork);
       canvasEditor.off("mouse:down", () => { });
     };
+  }, [canvasEditor, activeSide]);
 
-  }, [canvasEditor])
+  // ── Back canvas event handlers ───────────────────────────────────────────
+  useEffect(() => {
+    if (!canvasEditor || activeSide !== "back") return;
+
+    const captureBackArtwork = () => {
+      const artworkDataUrl = canvasEditor.toDataURL({
+        format: "png",
+        multiplier: 1,
+        quality: 1.0
+      });
+      updatedListingState("backArtworkUrl", artworkDataUrl);
+    };
+
+    const captureBackArtworkWithPlacement = (e: any) => {
+      const obj = e.target ?? canvasEditor.getActiveObject() ?? canvasEditor.getObjects()[0];
+      if (obj) {
+        updatedListingState("backArtworkPlacement", {
+          top: obj.top,
+          left: obj.left,
+          width: obj.getScaledWidth(),
+          height: obj.getScaledHeight(),
+          refDisplayWidth: DISPLAY_SIZE
+        });
+      }
+      captureBackArtwork();
+    };
+
+    canvasEditor.on("object:modified", captureBackArtworkWithPlacement);
+    canvasEditor.on("object:added", captureBackArtworkWithPlacement);
+    canvasEditor.on("object:removed", captureBackArtwork);
+    canvasEditor.on("mouse:down", (e) => {
+      if (!e.target) {
+        canvasEditor.discardActiveObject();
+        canvasEditor.requestRenderAll();
+      }
+    });
+
+    return () => {
+      canvasEditor.off("object:modified", captureBackArtworkWithPlacement);
+      canvasEditor.off("object:added", captureBackArtworkWithPlacement);
+      canvasEditor.off("object:removed", captureBackArtwork);
+      canvasEditor.off("mouse:down", () => { });
+    };
+  }, [canvasEditor, activeSide]);
 
   const generatePreview = useCallback(() => {
-    if (!canvasEditor || !selectedColor?.mockupUrl) return;
+    if (!frontCanvas || !selectedColor?.mockupUrl) return;
 
-    canvasEditor.discardActiveObject();
-    canvasEditor.requestRenderAll();
+    frontCanvas.discardActiveObject();
+    frontCanvas.requestRenderAll();
 
-    const artworkDataUrl = canvasEditor.toDataURL({
+    const artworkDataUrl = frontCanvas.toDataURL({
       format: "png",
       multiplier: 1,
       quality: 1.0
-    })
-    updatedListingState("artworkUrl", artworkDataUrl)
-    setPreviewBlobUrl("");
+    });
+    updatedListingState("frontArtworkUrl", artworkDataUrl);
     const mockupImg = new Image();
-    mockupImg.crossOrigin = "anonymous"
+    mockupImg.crossOrigin = "anonymous";
     mockupImg.src = selectedColor.mockupUrl;
     mockupImg.onload = () => {
       const W = mockupImg.naturalWidth;
@@ -179,7 +277,7 @@ const CanvasEditor = ({
       mergeCanvas.height = H;
       const ctx = mergeCanvas.getContext("2d")!;
       ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high"
+      ctx.imageSmoothingQuality = "high";
       ctx.drawImage(mockupImg, 0, 0, W, H);
 
       const artImg = new Image();
@@ -194,20 +292,76 @@ const CanvasEditor = ({
         ctx.drawImage(artImg, dx, dy, dw, dh);
 
         mergeCanvas.toBlob(
-          (blob) => {
-            if (blob) setPreviewBlobUrl(URL.createObjectURL(blob))
+          () => {
+            // Unused in 3D mode
           },
           "image/png",
           1.0
-        )
-      }
+        );
+      };
+    };
+  }, [frontCanvas, selectedColor, printableArea, updatedListingState]);
+
+  const generateBackPreview = useCallback(() => {
+    if (!selectedColor?.mockupUrl) return;
+
+    // If back canvas has no objects, use the plain mockup image
+    const hasBackObjects = backCanvas && backCanvas.getObjects().length > 0;
+
+    if (!hasBackObjects) {
+      return;
     }
-  }, [canvasEditor, selectedColor, printableArea, updatedListingState])
+
+    backCanvas!.discardActiveObject();
+    backCanvas!.requestRenderAll();
+
+    const artworkDataUrl = backCanvas!.toDataURL({
+      format: "png",
+      multiplier: 1,
+      quality: 1.0
+    });
+    updatedListingState("backArtworkUrl", artworkDataUrl);
+    const mockupImg = new Image();
+    mockupImg.crossOrigin = "anonymous";
+    mockupImg.src = selectedColor.mockupUrl;
+    mockupImg.onload = () => {
+      const W = mockupImg.naturalWidth;
+      const H = mockupImg.naturalHeight;
+      const mergeCanvas = document.createElement("canvas");
+      mergeCanvas.width = W;
+      mergeCanvas.height = H;
+      const ctx = mergeCanvas.getContext("2d")!;
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = "high";
+      ctx.drawImage(mockupImg, 0, 0, W, H);
+
+      const artImg = new Image();
+      artImg.src = artworkDataUrl;
+      artImg.onload = () => {
+        const scale = W / DISPLAY_SIZE;
+        const dx = printableArea.left * scale;
+        const dy = printableArea.top * scale;
+        const dw = printableArea.width * scale;
+        const dh = printableArea.height * scale;
+
+        ctx.drawImage(artImg, dx, dy, dw, dh);
+
+        mergeCanvas.toBlob(
+          () => {
+            // Unused in 3D mode
+          },
+          "image/png",
+          1.0
+        );
+      };
+    };
+  }, [backCanvas, selectedColor, printableArea]);
 
   useEffect(() => {
     if (!selectedColor || viewMode !== "preview") return;
     generatePreview();
-  }, [selectedColor, viewMode])
+    generateBackPreview();
+  }, [selectedColor, viewMode]);
 
   return (
     <div
@@ -225,6 +379,22 @@ const CanvasEditor = ({
       <div className="product-design-area relative flex flex-col
        items-center justify-start w-full transform scale-[95%] -mt-8  p-9
       ">
+
+        {/* Side Toggle — Front / Back */}
+        <div className="mb-4 flex items-center bg-background rounded-full p-1 shadow-sm border border-border z-30">
+          <Button
+            onClick={() => setActiveSide("front")}
+            className={cn("rounded-full cursor-pointer", activeSide === "front" ? "bg-foreground text-background" : "bg-transparent text-foreground hover:bg-accent")}
+          >
+            Front
+          </Button>
+          <Button
+            onClick={() => setActiveSide("back")}
+            className={cn("rounded-full cursor-pointer", activeSide === "back" ? "bg-foreground text-background" : "bg-transparent text-foreground hover:bg-accent")}
+          >
+            Back
+          </Button>
+        </div>
 
         <div className="product-preview-base w-full aspect-square relative transition-colors duration-300"
           style={{
@@ -250,11 +420,21 @@ const CanvasEditor = ({
               height: `${printableArea.height}px`
             }}
           >
-            <div className="printable-area outlined w-full h-full"
+            {/* Front canvas — visible when activeSide === "front" */}
+            <div
+              className="printable-area outlined w-full h-full"
+              style={{ display: activeSide === "front" ? "block" : "none" }}
             >
-              <canvas ref={canvasRef}
-                className="w-full h-full"
-              />
+              <canvas ref={frontCanvasRef} className="w-full h-full" />
+              <div className="printable-area-info-icon" />
+            </div>
+
+            {/* Back canvas — visible when activeSide === "back" */}
+            <div
+              className="printable-area outlined w-full h-full"
+              style={{ display: activeSide === "back" ? "block" : "none" }}
+            >
+              <canvas ref={backCanvasRef} className="w-full h-full" />
               <div className="printable-area-info-icon" />
             </div>
           </div>
@@ -267,39 +447,55 @@ const CanvasEditor = ({
             onLoad={() => setIsMaskLoaded(true)}
             style={{
               imageRendering: '-webkit-optimize-contrast',
-              background: 'transparent !important'
+              background: 'transparent !important',
+              transform: activeSide === "back" ? "scaleX(-1)" : "none",
+              transition: "transform 0.4s ease",
             }}
           />
 
           <div className="grid-lines" />
         </div>
 
-        {/* {Mockup Preview} */}
+        {/* {Mockup Preview — 3D Viewer} */}
 
-        <div className="mockup-preview aspect-square"
+        <div
+          className="mockup-preview aspect-square"
           style={{
             display: viewMode === "preview" ? "block" : "none",
             maxWidth: `${DISPLAY_SIZE}px`,
+            width: `${DISPLAY_SIZE}px`,
             height: `${DISPLAY_SIZE}px`,
-            lineHeight: `${DISPLAY_SIZE}px`
+            position: "relative",
           }}
         >
-          {previewBlobUrl ? (
-            <img
-              src={previewBlobUrl}
-              className="pointer-events-none"
+          {viewMode === "preview" && (
+            <ThreeDProductViewer
+              color={selectedColor?.color || "#ffffff"}
+              productType={template.type}
+              frontTextureUrl={listingData.frontArtworkUrl}
+              backTextureUrl={listingData.backArtworkUrl}
+              viewSide={activeSide}
             />
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-base text-muted-foreground animate-pulse">Generating mockup...</span>
-            </div>
           )}
+
+          {/* Flip button — overlaid at bottom center */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-10">
+            <Button
+              onClick={() => setActiveSide(activeSide === "front" ? "back" : "front")}
+              className="rounded-full bg-background text-foreground border border-border shadow-sm hover:bg-accent cursor-pointer"
+              size="sm"
+            >
+              <RefreshCw className="w-4 h-4 mr-1" />
+              {activeSide === "front" ? "View Back" : "View Front"}
+            </Button>
+          </div>
         </div>
 
         <div className="mt-7 mb-3 flex items-center bg-background rounded-full p-1 shadow-sm border border-border z-30 ">
           <Button
             onClick={() => {
               generatePreview()
+              generateBackPreview()
               setViewMode("preview")
             }}
             className={cn("rounded-full cursor-pointer", viewMode === "preview" ? "bg-foreground text-background" : "bg-transparent text-foreground hover:bg-accent")}
@@ -310,7 +506,8 @@ const CanvasEditor = ({
           <Button
             onClick={() => {
               setViewMode("design");
-              canvasEditor?.requestRenderAll();
+              frontCanvas?.requestRenderAll();
+              backCanvas?.requestRenderAll();
             }}
             className={cn("rounded-full cursor-pointer", viewMode === "design" ? "bg-foreground text-background" : "bg-transparent text-foreground hover:bg-accent")}
           >

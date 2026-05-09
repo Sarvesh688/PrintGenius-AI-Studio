@@ -1,20 +1,21 @@
+export type ArtworkPlacement = {
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+    refDisplayWidth: number;
+}
+
 export type CreateListingType = {
     templateId: string;
     title: string;
     description: string;
     sellingPrice: number;
     colorIds: string[];
-    artworkUrl: string;
-    artworkPlacement: {
-        top: number;
-        left: number;
-        width: number;
-        height: number;
-        // FIX: was missing — backend's getMockupUrlService reads this to
-        // compute the scale factor. Without it the value was undefined,
-        // making scale = NaN and breaking all overlay coordinates.
-        refDisplayWidth: number;
-    };
+    frontArtworkUrl: string;
+    frontArtworkPlacement: ArtworkPlacement;
+    backArtworkUrl?: string;
+    backArtworkPlacement?: ArtworkPlacement;
 }
 
 export type ColorIdsType = {
@@ -22,6 +23,7 @@ export type ColorIdsType = {
     name: string;
     color: string;
     mockupImageUrl: string;
+    backMockupImageUrl?: string;
 }
 
 export type ListingSingleType = {
@@ -32,8 +34,11 @@ export type ListingSingleType = {
     sellingPrice: number;
     sizes: string[];
     templateName: string;
+    templateType: "TSHIRT" | "HOODIE";
     templateBody: string;
     colorIds: ColorIdsType[];
+    frontArtworkUrl?: string;
+    backArtworkUrl?: string;
     createdAt: string;
     updatedAt: string;
 }

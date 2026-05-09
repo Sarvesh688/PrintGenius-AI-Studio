@@ -62,6 +62,19 @@ export const getMockupUrlController = asyncHandler(
   }
 )
 
+export const getMockupBackController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const { slug, colorName } = GetMockupUrlSchema.parse(req.params);
+
+    const imageBuffer = await getMockupImageService(slug, colorName, "back");
+
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("Content-Length", imageBuffer.length);
+    return res.status(200).send(imageBuffer);
+  }
+)
+
 export const generateArtworkController = asyncHandler(
   async (req: Request, res: Response) => {
     const { prompt } = generateArtworkSchema.parse(req.body);

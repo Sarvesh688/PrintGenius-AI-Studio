@@ -14,12 +14,14 @@ import { getListingBySlugQueryFn } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import Logo from '@/components/logo';
 import CheckoutDialog from './components/checkout-dialog';
+import ThreeDProductViewer from '../design/component/ThreeDProductViewer';
 import { ListingSingleType } from '@/types/listing';
 
 const SingleListingPage = () => {
   const { slug } = useParams();
   const [selectedSize, setSelectedSize] = useState('S');
   const [selectedColor, setSelectedColor] = useState<any>(null);
+  const [previewSide, setPreviewSide] = useState<"front" | "back">("front");
 
   const { data, isLoading } = useQuery({
     queryKey: ["listing", slug],
@@ -70,17 +72,48 @@ const SingleListingPage = () => {
 
           {/* Media Gallery */}
           <div className="w-full md:w-[500px] space-y-4">
-            <div className="aspect-[6/6] bg-muted rounded-2xl overflow-hidden border">
+            {/* 3D Viewer */}
+            <div
+              className="aspect-[6/6] rounded-2xl overflow-hidden border relative bg-muted"
+            >
               {selectedColor && (
-                <img
-                  src={selectedColor.mockupImageUrl}
-                  alt={listing.title}
-                  fetchPriority="high"
-                  decoding="async"
-                  className="w-full h-full object-contain"
+                <ThreeDProductViewer
+                  color={selectedColor.color}
+                  productType={listing.templateType}
+                  frontTextureUrl={listing.frontArtworkUrl}
+                  backTextureUrl={listing.backArtworkUrl}
+                  viewSide={previewSide}
                 />
               )}
             </div>
+
+            {/* Front / Back toggle */}
+            {(listing.frontArtworkUrl || listing.backArtworkUrl) && (
+              <div className="flex justify-center gap-2">
+                <button
+                  onClick={() => setPreviewSide("front")}
+                  className={cn(
+                    "px-4 py-1.5 rounded-full text-sm font-medium border transition-all",
+                    previewSide === "front"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-background text-foreground border-border hover:bg-accent"
+                  )}
+                >
+                  Front
+                </button>
+                <button
+                  onClick={() => setPreviewSide("back")}
+                  className={cn(
+                    "px-4 py-1.5 rounded-full text-sm font-medium border transition-all",
+                    previewSide === "back"
+                      ? "bg-foreground text-background border-foreground"
+                      : "bg-background text-foreground border-border hover:bg-accent"
+                  )}
+                >
+                  Back
+                </button>
+              </div>
+            )}
 
             {/* Color thumbnails */}
             <div className="flex justify-center gap-3">

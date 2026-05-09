@@ -167,7 +167,7 @@ const EditorSidebar = ({
       listingData.description.trim() !== "" &&
       listingData.sellingPrice >= (basePrice || 0) &&
       listingData.selectedColors.length > 0 &&
-      canvasEditor !== null
+      listingData.frontArtworkUrl.trim() !== ""
     );
   };
 
@@ -176,14 +176,18 @@ const EditorSidebar = ({
       toast.error("Please fill all fields")
       return;
     }
-    const payload = {
+    const payload: CreateListingType = {
       templateId: templateId,
       title: listingData.title,
       description: listingData.description,
       sellingPrice: parseFloat(Number(listingData.sellingPrice).toFixed(2)),
       colorIds: listingData.selectedColors.map((color) => color._id),
-      artworkUrl: listingData.artworkUrl,
-      artworkPlacement: listingData.artworkPlacement,
+      frontArtworkUrl: listingData.frontArtworkUrl,
+      frontArtworkPlacement: listingData.frontArtworkPlacement,
+      ...(listingData.backArtworkUrl.trim() !== "" && {
+        backArtworkUrl: listingData.backArtworkUrl,
+        backArtworkPlacement: listingData.backArtworkPlacement,
+      }),
     }
     createListing(payload, {
       onSuccess: () => {

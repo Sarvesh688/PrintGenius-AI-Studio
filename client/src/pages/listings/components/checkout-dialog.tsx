@@ -17,6 +17,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { useMutation } from "@tanstack/react-query";
 import { createOrderSession } from "@/lib/api";
 import { toast } from "sonner";
+import ThreeDProductViewer from "../../design/component/ThreeDProductViewer";
 
 
 
@@ -142,13 +143,14 @@ const CheckoutDialog = ({ listing, selectedSize, selectedColor }: CheckoutDialog
               <div className="space-y-4 px-1">
                 {/* Product Summary */}
                 <div className="flex gap-4 bg-muted p-3 rounded-lg border">
-                  <div className="h-16 w-16 bg-background rounded border shrink-0">
+                  <div className="h-24 w-24 bg-background rounded border shrink-0 relative overflow-hidden">
                     {selectedColor && (
-                      <img
-                        src={selectedColor.mockupImageUrl}
-                        fetchPriority="high"
-                        decoding="async"
-                        className="w-full h-full object-contain"
+                      <ThreeDProductViewer
+                        color={selectedColor.color}
+                        productType={listing.templateType}
+                        frontTextureUrl={listing.frontArtworkUrl}
+                        backTextureUrl={listing.backArtworkUrl}
+                        autoRotate={true}
                       />
                     )}
                   </div>
