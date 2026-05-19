@@ -1,6 +1,6 @@
 # 🎨 PrintGenius-AI-Studio
 
-A full-stack AI-powered print-on-demand platform built with MERN stack, featuring intelligent artwork generation, real-time design customization, and seamless e-commerce integration.
+A full-stack AI-powered print-on-demand platform built with MERN stack, featuring intelligent artwork generation, real-time 3D design customization, and seamless e-commerce integration.
 
 ## 🌐 Live Demo
 
@@ -10,13 +10,22 @@ A full-stack AI-powered print-on-demand platform built with MERN stack, featurin
 
 ### 🤖 AI-Powered Artwork Generation
 - Generate custom artwork from text prompts using **Groq (Llama 3.3)** for prompt engineering
-- High-quality image generation via **Pollinations.ai (FLUX model)** — completely free, no API key required
-- Automatic background removal for clean, professional designs
+- High-quality image generation via **Pollinations.ai** — completely free, no API key required
+- Automatic background removal for clean, professional designs — background sent **directly** to Remove.bg (no intermediate upload), saving several seconds per generation
 - Optimized output for print production
+
+### 🧊 Interactive 3D Product Preview
+- **True 3D product viewer** powered by [Three.js](https://threejs.org) / [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber)
+- Realistic front **and** back design rendering on a 3D model
+- Smooth camera rotation via `OrbitControls` — drag to inspect any angle
+- **Front / Back toggle buttons** synchronized with the 3D model rotation in the design studio, listing page, and checkout dialog
+- **Hoodie detection**: when a hoodie product is selected, a dynamic hood, long sleeves, and front pocket are automatically added to the 3D model
+- **Auto-rotating 3D thumbnail** displayed inside the checkout dialog so customers can inspect both sides of their order without any interaction
 
 ### 🎨 Advanced Design Studio
 - Real-time drag-and-drop design editor with Fabric.js
-- Live preview on product mockups (t-shirts, hoodies, etc.)
+- **Dual-side canvas**: independently design the front and back of every product
+- Synchronized "Front / Back" tab controls across the 2D canvas and the 3D preview
 - Customizable artwork placement and scaling
 - Multiple product templates and color options
 
@@ -30,7 +39,8 @@ A full-stack AI-powered print-on-demand platform built with MERN stack, featurin
 ### 🔧 Technical Highlights
 - **Backend**: Node.js, Express, MongoDB with TypeScript
 - **Frontend**: React 19 with modern component architecture
-- **AI Integration**: Groq (Llama 3.3-70b) for prompt engineering, Pollinations.ai (FLUX) for image generation
+- **3D Rendering**: Three.js, @react-three/fiber, @react-three/drei
+- **AI Integration**: Groq (Llama 3.3-70b) for prompt engineering, Pollinations.ai for fast image generation
 - **Media Processing**: Cloudinary for storage, Remove.bg for background removal
 - **Authentication**: Better Auth with secure session management
 - **Real-time Features**: Live design preview and mockup generation
@@ -52,9 +62,17 @@ A full-stack AI-powered print-on-demand platform built with MERN stack, featurin
 └─────────────────┘    │   ├── Cloudinary       — Storage     │
                        │   └── Remove.bg        — BG Removal  │
                        └──────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────┐
+│   3D Rendering                                              │
+│   ├── Three.js / @react-three/fiber — 3D scene             │
+│   ├── @react-three/drei — Decals, OrbitControls, GLTF      │
+│   └── shirt_baked.glb — Base product 3D model              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## 🤖 AI Pipeline (100% Free)
+## 🤖 AI Pipeline (100% Free, Optimized)
 
 ```
 User types a prompt
@@ -62,17 +80,32 @@ User types a prompt
 Groq / Llama 3.3-70b (FREE)
 → Rewrites prompt into a detailed art prompt using SYSTEM_PROMPT
         ↓
-Pollinations.ai FLUX model (FREE — no API key needed)
+Pollinations.ai fast model (FREE — no API key needed)
 → Generates a 1024×1024 image from the engineered prompt
         ↓
-Cloudinary
-→ Stores the generated image
-        ↓
-Remove.bg
+Remove.bg  ← raw image buffer sent DIRECTLY (no intermediate upload!)
 → Removes background for clean print-ready artwork
+        ↓
+Cloudinary
+→ Stores the final transparent PNG
         ↓
 Final artwork URL returned to frontend ✅
 ```
+
+> **Performance Note**: The intermediate Cloudinary upload step has been eliminated. The generated image buffer is now streamed directly to Remove.bg, cutting generation time significantly.
+
+## 🧊 3D Product Viewer
+
+The 3D viewer (`ThreeDProductViewer.tsx`) renders your design on an actual 3D product model using Three.js decals.
+
+| Feature | Details |
+|---------|---------|
+| Model | `shirt_baked.glb` GLTF model served from `/public` |
+| Textures | Design canvases exported as PNG and applied as `<Decal>` on the front (`Z+`) and back (`Z-`) of the model |
+| Color | Base color applied dynamically via `THREE.MeshStandardMaterial` |
+| Hoodie Mode | Dynamic hood (sphere), long sleeves (cylinder), and pocket (box) meshes added when `productType === "HOODIE"` |
+| Controls | `OrbitControls` — drag/pinch to rotate; `autoRotate` mode for the checkout thumbnail |
+| Flip Toggle | `ModelGroup` uses `useFrame` to lerp `rotation.y` between `0` and `Math.PI` for smooth front/back switching |
 
 ## 🚀 Quick Start
 
@@ -194,22 +227,26 @@ The API is automatically documented using Better Auth's OpenAPI integration:
 #### Listings
 - `POST /api/listing` — Create new listing
 - `GET /api/listing/user` — Get user's listings
-- `GET /api/listing/:slug` — Get listing by slug
-- `POST /api/listing/generate` — **Generate AI artwork (Groq + Pollinations)**
+- `GET /api/listing/:slug` — Get listing by slug (includes `templateType` for 3D viewer)
+- `GET /api/listing/mockup/:slug/:color.jpg` — Get composited front mockup image
+- `GET /api/listing/mockup/:slug/:color/back.jpg` — Get composited back mockup image
+- `POST /api/listing/generate-artwork` — **Generate AI artwork (Groq + Pollinations)**
 
 #### Orders
 - `POST /api/order` — Create new order
 - `GET /api/order/user` — Get user's orders
 - `GET /api/order/:id` — Get order by ID
 
-## 🐳 Docker Deployment
+## 🔄 Changelog
 
-```bash
-docker-compose up -d
-```
-
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8000
+### Latest Updates
+- ✅ **3D Product Viewer**: Replaced all 2D flip-card previews with an interactive Three.js 3D viewer
+- ✅ **Dual-Side Design**: Front and back canvases are fully independent; the 3D viewer shows both sides accurately
+- ✅ **Hoodie Shape**: Dynamic hoodie geometry (hood, sleeves, pocket) rendered when product type is `HOODIE`
+- ✅ **Synchronized Controls**: Front/Back toggle buttons in the design studio, listing page, and checkout dialog all sync with the 3D model rotation
+- ✅ **Auto-rotating Checkout Thumbnail**: 3D product shown in checkout dialog with auto-rotation so customers see both sides
+- ✅ **AI Generation Speed**: Removed intermediate Cloudinary upload; raw buffer sent directly to Remove.bg — generation is significantly faster
+- ✅ **API Enhancement**: `templateType` now returned from listing endpoint to enable per-product 3D shape selection
 
 ## 🚀 Production Deployment
 
@@ -219,29 +256,6 @@ Update your environment variables for production:
 NODE_ENV=production
 BASE_URL=https://your-domain.com
 FRONTEND_ORIGIN=https://your-frontend-domain.com
-```
-
-## 🧪 Testing
-
-```bash
-# Backend tests
-cd backend && npm test
-
-# Frontend tests
-cd client && npm test
-
-# Integration tests
-npm run test:integration
-```
-
-## 🔧 Development
-
-```bash
-# Format code
-npm run format
-
-# Check linting
-npm run lint
 ```
 
 ## 🤝 Contributing
@@ -260,7 +274,8 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 - Built with the MERN stack (MongoDB, Express, React, Node.js)
 - AI text powered by [Groq](https://groq.com) — Llama 3.3-70b
-- AI images powered by [Pollinations.ai](https://pollinations.ai) — FLUX
+- AI images powered by [Pollinations.ai](https://pollinations.ai)
+- 3D rendering by [Three.js](https://threejs.org) / [@react-three/fiber](https://docs.pmnd.rs/react-three-fiber) / [@react-three/drei](https://github.com/pmndrs/drei)
 - Design editor powered by [Fabric.js](http://fabricjs.com)
 - Authentication by [Better Auth](https://better-auth.com)
 - Media processing by [Cloudinary](https://cloudinary.com) and [Remove.bg](https://remove.bg)
